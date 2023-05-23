@@ -27,24 +27,13 @@ export async function SignInUser(req, res) {
 }
 
 export async function signUpUser(req, res) {
-  const { name, email, password, confirmPassword } = req.body;
+  const {name, email, password} = req.body;
+    const encryptedPw = bcrypt.hashSync(password, 10)
+    try {
+        await db.query(`INSERT INTO users (name, email, password) VALUES ($1, $2, $3)`, [name, email, encryptedPw])
+        res.sendStatus(201)
+    } catch (err) {
+        console.log(err.message)
+    }
 
-  try {
-      const existingUser = await db.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
-      if (existingUser.rows.length > 0) return res.status(409).send('E-mail already registered');
-
-      if (password !== confirmPassword) return res.status(422).send('Passwords do not match');
-
-      const hashedPassword = await bcrypt.hash(password, 10);
-
-      await db.query('INSERT INTO users (name, email, password) VALUES ($1, $2, $3)', [
-          name.toLowerCase(),
-          email.toLowerCase(),
-          hashedPassword,
-      ]);
-
-      return res.status(201).send('User registered successfully');
-  } catch (error) {
-      return res.status(500).send('Internal Server Error');
-  }
 }
