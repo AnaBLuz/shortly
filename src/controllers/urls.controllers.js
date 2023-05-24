@@ -1,7 +1,7 @@
 import { nanoid } from "nanoid";
 import { db } from "../database/database.connection.js";
 
-export const shortenUrl = async (req, res) => {
+export const shortUrl = async (req, res) => {
     try {
         const { url } = req.body;
         const { userId } = res.locals;
@@ -25,7 +25,7 @@ export const shortenUrl = async (req, res) => {
     }
 };
 
-export const findURLById = async (req, res) => {
+export const getURLById = async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -134,7 +134,7 @@ export const usersMe = async (req, res) => {
     }
 };
 
-export const getRanking = async (req, res) => {
+export const ranking = async (req, res) => {
     try {
         const rankingQuery =
             `SELECT users.id, users.name, 

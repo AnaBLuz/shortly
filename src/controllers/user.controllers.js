@@ -65,7 +65,7 @@ export async function getInfosUser(req, res) {
 	}
 }
 
-export async function getRanking(req, res) {
+export async function ranking(req, res) {
 	try {
 		const ranking = await db.query(
       `SELECT users.id, users.name, COUNT(links) AS "linksCount", SUM(links.visits) AS "visitCount"
