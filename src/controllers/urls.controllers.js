@@ -9,7 +9,7 @@ export const shortUrl = async (req, res) => {
         const shortUrl = nanoid();
 
         const query = `
-            INSERT INTO links (originalUrl, shortenedUrl, user_id)
+            INSERT INTO links (url, "shortUrl", "userId")
             VALUES ($1, $2, $3)
             RETURNING id`;
         const values = [url, shortUrl, userId];
@@ -26,45 +26,29 @@ export const shortUrl = async (req, res) => {
 };
 
 export const getURLById = async (req, res) => {
-    try {
-        const { id } = req.params;
+    const { id } = req.params;
+	try {
+		const response = await db.query(`SELECT id, "shortUrl", url FROM links WHERE id=$1;`, [Number(id)]);
+		if (response.rowCount === 0) return res.sendStatus(404);
 
-        const query = `
-            SELECT id, shortenedUrl as "shortUrl", originalUrl as url
-            FROM links WHERE id = $1`;
-        const values = [id];
-
-        const result = await db.query(query, values);
-
-        if (result.rowCount === 0) return res.status(404).send('Shortened URL not found.');
-
-        return res.status(200).send(result.rows[0]);
-    } catch (error) {
-        
-        return res.status(500).send('Internal server error.');
-    }
+		res.status(200).send(response.rows[0]);
+	} catch (err) {
+		res.status(500).send(err.message);
+	}
 };
 
 export const getShortURL = async (req, res) => {
-    try {
-        const { shortUrl } = req.params;
-
-        const query = 'SELECT originalUrl FROM links WHERE shortenedUrl = $1';
-        const values = [shortUrl];
-
-        const result = await db.query(query, values);
-
-        if (result.rowCount === 0) return res.sendStatus(404);
-        
-        const originalUrl = result.rows[0].originalurl;
-
-        const updateQuery = 'UPDATE links SET visitCount = visitCount + 1 WHERE shortenedUrl = $1';
-        await db.query(updateQuery, [shortUrl]);
-
-        return res.redirect(originalUrl);
-    } catch (error) {
-        return res.status(500).send('Internal server error.');
-    }
+    const { shortUrl } = req.params;
+	try {
+		const response = await db.query(`SELECT id, url, visits FROM links WHERE "shortUrl"=$1;`, [shortUrl]);
+		if (response.rowCount === 0) return res.sendStatus(404);
+		const { id, url, visits } = response.rows[0];
+		let visit = visits;
+		await db.query(`UPDATE links SET visits=$1 WHERE id=$2`, [(visit += 1), id]);
+		res.redirect(url);
+	} catch (err) {
+		res.status(500).send(err.message);
+	}
 };
 
 export const deleteURL = async (req, res) => {
@@ -77,7 +61,7 @@ export const deleteURL = async (req, res) => {
 
         if (response.rowCount === 0) return res.sendStatus(404)
 
-        const query = 'SELECT * FROM links WHERE id = $1 AND user_id = $2';
+        const query = 'SELECT * FROM links WHERE id = $1 AND userId = $2';
         const values = [id, userId];
 
         const result = await db.query(query, values);
@@ -105,7 +89,7 @@ export const usersMe = async (req, res) => {
 
         if (!user) return res.status(404).send('User not found');
 
-        const urlsQuery = 'SELECT * FROM links WHERE user_id = $1';
+        const urlsQuery = 'SELECT * FROM links WHERE userId = $1';
         const urlsValues = [userId];
 
         const urlsResult = await db.query(urlsQuery, urlsValues);
@@ -136,22 +120,13 @@ export const usersMe = async (req, res) => {
 
 export const ranking = async (req, res) => {
     try {
-        const rankingQuery =
-            `SELECT users.id, users.name, 
-            COUNT(links.id) AS linksCount, SUM(links.visitcount) AS visitCount 
-            FROM users LEFT JOIN urls ON users.id = urls.user_id 
-            GROUP BY users.id ORDER BY visitCount DESC LIMIT 10`;
-        const rankingResult = await db.query(rankingQuery);
-
-        const ranking = rankingResult.rows.map((row) => ({
-            id: row.id,
-            name: row.name,
-            linksCount: row.linkscount || 0,
-            visitCount: row.visitcount || 0,
-        }));
-
-        res.status(200).send(ranking);
-    } catch (error) {
-        res.status(500).send('Internal server error');
-    }
+		const ranking = await db.query(
+            `SELECT users.id, users.name, COUNT(links) AS "linksCount", SUM(links.visits) AS "visitCount"
+            FROM users JOIN links ON links."userId"=users.id GROUP BY (users.id) ORDER BY "visitCount" DESC LIMIT 10;`
+        );
+		if (ranking.rowCount === 0) return res.sendStatus(404);
+		res.status(200).send(ranking.rows);
+	} catch (err) {
+		res.status(500).send(err.message);
+	}
 };
