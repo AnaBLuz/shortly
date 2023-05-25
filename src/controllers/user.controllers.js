@@ -49,20 +49,43 @@ export async function logout(req, res) {
 }
 
 export async function getInfosUser(req, res) {
-	const { id } = res.locals.user;
 	try {
-		const userInfo = await db.query(
-      `SELECT users.id, users.name, SUM(links.visits) AS "visitCount",
-          json_agg(json_build_object('id',links.id, 'url', links.url, 'shortUrl',links."shortUrl",'visitCount',links.visits))
-          AS "shortenedUrls"
-          FROM users JOIN links ON links."userId"=$1
-          AND users.id=$1 GROUP BY (users.id);`,
-      [Number(id)]
+    const userEmail = req.user.email;
+    const user = await db.query(
+      `
+          SELECT id, name, email, "createdAt"
+          FROM users
+          WHERE email = $1
+        `,
+      [userEmail]
     );
-		res.status(200).send(userInfo.rows[0]);
-	} catch (err) {
-		res.status(500).send(err.message);
-	}
+    const shortenedUrls = await db.query(
+      `
+        SELECT id, url, "shortUrl", visits as "visitCount"
+        FROM links
+        WHERE user_email = $1
+      `,
+      [userEmail]
+    );
+    let visitCount = shortenedUrls.rows.reduce(
+      (sum, url) => sum + url.visitCount,
+      0
+    );
+    console.log(visitCount);
+      console.log(shortenedUrls.rows)
+    visitCount = visitCount === null ? 0 : visitCount;
+
+    res.status(200).send({
+      id: user.rows[0].id,
+      name: user.rows[0].name,
+      email: user.rows[0].email,
+      visitCount: visitCount,
+      shortenedUrls: shortenedUrls.rows,
+    });
+  } catch (err) {
+    console.log(err);
+    res.status(500).send(err);
+  }
 }
 
 export async function ranking(req, res) {

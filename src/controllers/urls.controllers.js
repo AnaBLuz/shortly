@@ -78,44 +78,20 @@ export const deleteURL = async (req, res) => {
 };
 
 export const usersMe = async (req, res) => {
-    try {
-        const { userId } = res.locals;
-        
-        const userQuery = 'SELECT * FROM links WHERE id = $1';
-        const userValues = [userId];
-
-        const userResult = await db.query(userQuery, userValues);
-        const user = userResult.rows[0];
-
-        if (!user) return res.status(404).send('User not found');
-
-        const urlsQuery = 'SELECT * FROM links WHERE userId = $1';
-        const urlsValues = [userId];
-
-        const urlsResult = await db.query(urlsQuery, urlsValues);
-        const urls = urlsResult.rows;
-
-        const urlsData = urls.map((url) => ({
-            id: url.id,
-            shortUrl: url.shortenedurl,
-            url: url.originalurl,
-            visitCount: url.visitcount,
-        }));
-
-        const visitCount = urls.reduce((total, url) => total + url.visitcount, 0);
-
-        const responseData = {
-            id: user.id,
-            name: user.name,
-            visitCount: visitCount,
-            shortenedUrls: urlsData,
-        };
-
-        res.status(200).send(responseData);
-    } catch (error) {
-        console.log(error)
-        res.status(500).send('Failed to retrieve user data');
-    }
+    const { id } = res.locals.user;
+	try {
+		const userInfo = await db.query(
+            `SELECT users.id, users.name, SUM(links.visits) AS "visitCount",
+            json_agg(json_build_object('id',links.id, 'url', links.url, 'shortUrl',links."shortUrl",'visitCount',links.visits))
+            AS "shortenedUrls"
+            FROM users JOIN links ON links."userId"=$1
+            AND users.id=$1 GROUP BY (users.id);`,
+            [Number(id)]
+        );
+		res.status(200).send(userInfo.rows[0]);
+	} catch (err) {
+		res.status(500).send(err.message);
+	}
 };
 
 export const ranking = async (req, res) => {
